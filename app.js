@@ -61,7 +61,7 @@ const server = http.createServer(async (req, res) => {
           </div>
         </div>
 
-        <!-- Indicator Stage / Level Progression & Audio -->
+        <!-- Indicator Stage & Audio -->
         <div class="flex items-center justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 text-xs">
           <div class="flex items-center gap-3">
             <div>
@@ -101,7 +101,6 @@ const server = http.createServer(async (req, res) => {
               <p class="text-xs text-slate-400 mt-1">Selesaikan tiap stage untuk membuka level baru!</p>
             </div>
 
-            <!-- Pilihan Stage (Terbuka Jika Sudah Ditamatkan) -->
             <div class="w-full space-y-1 text-center">
               <label class="text-xs text-slate-300 font-medium">Pilih Stage Awal:</label>
               <select id="stageSelect" class="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-700 focus:outline-none focus:border-emerald-500 text-center font-bold">
@@ -169,7 +168,6 @@ const server = http.createServer(async (req, res) => {
         const stageTargetFood = 10;
         let obstacles = [];
 
-        // Update Pilihan Option Stage di Dropdown berdasarkan Progress Unlocked
         function updateStageDropdown() {
           const opt2 = document.getElementById('optStage2');
           const opt3 = document.getElementById('optStage3');
@@ -233,4 +231,250 @@ const server = http.createServer(async (req, res) => {
 
         function toggleSound() {
           soundEnabled = !soundEnabled;
-          document.getElementById('soundBtn').innerText = sound
+          document.getElementById('soundBtn').innerText = soundEnabled ? '🔊 Sound' : '🔇 Mute';
+        }
+
+        function updateProgressDisplay() {
+          document.getElementById('stageDisplay').innerText = 'STAGE ' + currentStage;
+          document.getElementById('targetDisplay').innerText = foodEatenInStage + ' / ' + stageTargetFood;
+        }
+
+        function getRandomFoodPos() {
+          let pos;
+          let isValid = false;
+          while (!isValid) {
+            pos = {
+              x: Math.floor(Math.random() * count) * grid,
+              y: Math.floor(Math.random() * count) * grid
+            };
+            const onObstacle = obstacles.some(obs => obs.x === pos.x && obs.y === pos.y);
+            const onSnake = snake.some(seg => seg.x === pos.x && seg.y === pos.y);
+            if (!onObstacle && !onSnake) isValid = true;
+          }
+          return pos;
+        }
+
+        function changeDir(dir) {
+          if (!isGameStarted || isGameOver) return;
+          let turned = false;
+          if (dir === 'UP' && dy === 0) { dx = 0; dy = -grid; turned = true; }
+          if (dir === 'DOWN' && dy === 0) { dx = 0; dy = grid; turned = true; }
+          if (dir === 'LEFT' && dx === 0) { dx = -grid; dy = 0; turned = true; }
+          if (dir === 'RIGHT' && dx === 0) { dx = grid; dy = 0; turned = true; }
+          if (turned) playTurnSound();
+        }
+
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowUp') changeDir('UP');
+          if (e.key === 'ArrowDown') changeDir('DOWN');
+          if (e.key === 'ArrowLeft') changeDir('LEFT');
+          if (e.key === 'ArrowRight') changeDir('RIGHT');
+        });
+
+        let touchStartX = 0, touchStartY = 0;
+        let touchEndX = 0, touchEndY = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+          touchStartX = e.changedTouches[0].screenX;
+          touchStartY = e.changedTouches[0].screenY;
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+          touchEndX = e.changedTouches[0].screenX;
+          touchEndY = e.changedTouches[0].screenY;
+          handleSwipe();
+        }, { passive: false });
+
+        function handleSwipe() {
+          const diffX = touchEndX - touchStartX;
+          const diffY = touchEndY - touchStartY;
+          const minSwipeDistance = 20;
+
+          if (Math.abs(diffX) > Math.abs(diffY)) {
+            if (Math.abs(diffX) > minSwipeDistance) {
+              if (diffX > 0) changeDir('RIGHT');
+              else changeDir('LEFT');
+            }
+          } else {
+            if (Math.abs(diffY) > minSwipeDistance) {
+              if (diffY > 0) changeDir('DOWN');
+              else changeDir('UP');
+            }
+          }
+        }
+
+        function startGameFromMenu() {
+          const selectedStage = parseInt(document.getElementById('stageSelect').value);
+          currentStage = selectedStage;
+          document.getElementById('startMenuScreen').classList.add('hidden');
+          resetGame();
+        }
+
+        function showStartMenu() {
+          isGameStarted = false;
+          clearInterval(gameLoop);
+          document.getElementById('gameOverModal').classList.add('hidden');
+          document.getElementById('startMenuScreen').classList.remove('hidden');
+          updateStageDropdown();
+        }
+
+        function nextLevel() {
+          currentStage++;
+          foodEatenInStage = 0;
+          currentSpeed = Math.max(45, currentSpeed - 12);
+          
+          if (currentStage > maxUnlockedStage) {
+            maxUnlockedStage = currentStage;
+            localStorage.setItem('snake_max_stage', maxUnlockedStage);
+            updateStageDropdown();
+          }
+
+          playLevelUpSound();
+          loadStageObstacles(currentStage);
+          updateProgressDisplay();
+          
+          const banner = document.getElementById('levelUpBanner');
+          banner.classList.remove('hidden');
+          setTimeout(() => banner.classList.add('hidden'), 2000);
+
+          clearInterval(gameLoop);
+          gameLoop = setInterval(update, currentSpeed);
+        }
+
+        function update() {
+          if (!isGameStarted || isGameOver) return;
+          const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+          
+          if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) return gameOver();
+          for (let segment of snake) {
+            if (head.x === segment.x && head.y === segment.y) return gameOver();
+          }
+          for (let obs of obstacles) {
+            if (head.x === obs.x && head.y === obs.y) return gameOver();
+          }
+          
+          snake.unshift(head);
+          
+          if (head.x === food.x && head.y === food.y) {
+            score += 10;
+            foodEatenInStage++;
+            document.getElementById('score').innerText = score;
+            playEatSound();
+            
+            if (foodEatenInStage >= stageTargetFood) {
+              nextLevel();
+            } else {
+              updateProgressDisplay();
+            }
+            food = getRandomFoodPos();
+          } else {
+            snake.pop();
+          }
+          draw();
+        }
+
+        function draw() {
+          ctx.fillStyle = '#020617';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          ctx.fillStyle = '#991b1b';
+          obstacles.forEach(obs => {
+            ctx.beginPath();
+            ctx.roundRect(obs.x + 1, obs.y + 1, grid - 2, grid - 2, 3);
+            ctx.fill();
+          });
+
+          ctx.fillStyle = '#ef4444';
+          ctx.beginPath();
+          ctx.arc(food.x + grid/2, food.y + grid/2, grid/2 - 1, 0, Math.PI * 2);
+          ctx.fill();
+          
+          snake.forEach((segment, index) => {
+            const centerX = segment.x + grid / 2;
+            const centerY = segment.y + grid / 2;
+            const radius = (grid / 2) - 1;
+
+            ctx.beginPath();
+            if (index === 0) {
+              ctx.fillStyle = '#10b981';
+              ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+              ctx.fill();
+
+              let eye1X = centerX, eye1Y = centerY, eye2X = centerX, eye2Y = centerY;
+              if (dx > 0) { eye1X = centerX + 3; eye1Y = centerY - 4; eye2X = centerX + 3; eye2Y = centerY + 4; }
+              else if (dx < 0) { eye1X = centerX - 3; eye1Y = centerY - 4; eye2X = centerX - 3; eye2Y = centerY + 4; }
+              else if (dy < 0) { eye1X = centerX - 4; eye1Y = centerY - 3; eye2X = centerX + 4; eye2Y = centerY - 3; }
+              else if (dy > 0) { eye1X = centerX - 4; eye1Y = centerY + 3; eye2X = centerX + 4; eye2Y = centerY + 3; }
+
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath(); ctx.arc(eye1X, eye1Y, 2.5, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(eye2X, eye2Y, 2.5, 0, Math.PI * 2); ctx.fill();
+
+              ctx.fillStyle = '#000000';
+              ctx.beginPath(); ctx.arc(eye1X, eye1Y, 1, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(eye2X, eye2Y, 1, 0, Math.PI * 2); ctx.fill();
+
+            } else {
+              const tailFactor = Math.max(0.5, 1 - (index / (snake.length + 5)));
+              const bodyRadius = radius * tailFactor;
+
+              ctx.fillStyle = index % 2 === 0 ? '#34d399' : '#059669';
+              ctx.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          });
+        }
+
+        function gameOver() {
+          isGameOver = true;
+          clearInterval(gameLoop);
+          playGameOverSound();
+          if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('snake_high_score', highScore);
+            document.getElementById('highScore').innerText = highScore;
+          }
+          document.getElementById('finalScore').innerText = score;
+          document.getElementById('finalStage').innerText = 'Stage ' + currentStage;
+          document.getElementById('gameOverModal').classList.remove('hidden');
+        }
+
+        function resetGame() {
+          snake = [{ x: 160, y: 160 }, { x: 144, y: 160 }, { x: 128, y: 160 }];
+          dx = grid; dy = 0; score = 0; isGameOver = false; isGameStarted = true;
+          foodEatenInStage = 0;
+          currentSpeed = Math.max(45, 110 - ((currentStage - 1) * 15));
+
+          document.getElementById('score').innerText = 0;
+          document.getElementById('gameOverModal').classList.add('hidden');
+          
+          loadStageObstacles(currentStage);
+          updateProgressDisplay();
+          food = getRandomFoodPos();
+          
+          clearInterval(gameLoop);
+          gameLoop = setInterval(update, currentSpeed);
+          draw();
+        }
+
+        updateStageDropdown();
+        loadStageObstacles(1);
+        draw();
+      </script>
+    </body>
+    </html>
+    `;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.statusCode = 200;
+    res.end(html);
+  }
+});
+
+server.listen(port, hostname, () => {
+  console.log(`Server running at http://${hostname}:${port}/`);
+});
