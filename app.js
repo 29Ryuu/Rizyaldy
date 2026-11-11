@@ -47,7 +47,7 @@ const server = http.createServer(async (req, res) => {
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4 font-sans select-none">
-      <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4 relative overflow-hidden">
         
         <!-- Header -->
         <div class="flex items-center justify-between border-b border-slate-700 pb-3">
@@ -61,19 +61,20 @@ const server = http.createServer(async (req, res) => {
           </div>
         </div>
 
-        <!-- Menu Kesulitan & Kontrol Suara -->
-        <div class="flex items-center justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50">
-          <div class="flex items-center gap-2">
-            <label for="difficulty" class="text-xs text-slate-300 font-medium">Kesulitan:</label>
-            <select id="difficulty" onchange="changeDifficulty(this.value)" class="bg-slate-800 text-slate-200 text-xs rounded-lg px-2 py-1 border border-slate-600 focus:outline-none focus:border-emerald-500">
-              <option value="150">Easy (Santai)</option>
-              <option value="100" selected>Medium (Normal)</option>
-              <option value="60">Hard (Ngebut)</option>
-              <option value="35">Extreme (Gila)</option>
-            </select>
+        <!-- Indicator Stage / Level Progression & Audio -->
+        <div class="flex items-center justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 text-xs">
+          <div class="flex items-center gap-3">
+            <div>
+              <span class="text-slate-400 block">STAGE</span>
+              <span id="stageDisplay" class="font-bold text-emerald-400 text-sm">STAGE 1</span>
+            </div>
+            <div class="border-l border-slate-700 pl-3">
+              <span class="text-slate-400 block">TARGET</span>
+              <span id="targetDisplay" class="font-bold text-yellow-400 text-sm">0 / 10</span>
+            </div>
           </div>
-          <button onclick="toggleSound()" id="soundBtn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg border border-slate-600 transition flex items-center gap-1">
-            🔊 Sound ON
+          <button onclick="toggleSound()" id="soundBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg border border-slate-600 transition">
+            🔊 Sound
           </button>
         </div>
 
@@ -89,15 +90,46 @@ const server = http.createServer(async (req, res) => {
           </div>
         </div>
 
-        <!-- Canvas Game -->
+        <!-- Canvas Game & Overlay Screen -->
         <div class="relative flex justify-center items-center">
           <canvas id="gameCanvas" width="320" height="320" class="bg-slate-950 rounded-xl border border-slate-700 shadow-inner touch-none"></canvas>
           
+          <!-- MENU UTAMA / START SCREEN -->
+          <div id="startMenuScreen" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md rounded-xl flex flex-col items-center justify-center p-6 space-y-4 z-20">
+            <div class="text-center">
+              <h2 class="text-3xl font-extrabold text-emerald-400 tracking-wider animate-pulse">SNAKE ADVENTURE</h2>
+              <p class="text-xs text-slate-400 mt-1">Selesaikan tiap stage untuk membuka level baru!</p>
+            </div>
+
+            <!-- Pilihan Stage (Terbuka Jika Sudah Ditamatkan) -->
+            <div class="w-full space-y-1 text-center">
+              <label class="text-xs text-slate-300 font-medium">Pilih Stage Awal:</label>
+              <select id="stageSelect" class="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-700 focus:outline-none focus:border-emerald-500 text-center font-bold">
+                <option value="1">Stage 1: Polos (Unlocked)</option>
+                <option value="2" id="optStage2" disabled>Stage 2: Salib (🔒 Terkunci)</option>
+                <option value="3" id="optStage3" disabled>Stage 3: Labirin (🔒 Terkunci)</option>
+              </select>
+            </div>
+
+            <button onclick="startGameFromMenu()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition text-base shadow-lg shadow-emerald-600/30 transform active:scale-95">
+              🎮 START GAME
+            </button>
+          </div>
+
+          <!-- Banner Level Up -->
+          <div id="levelUpBanner" class="hidden absolute top-4 bg-emerald-500 text-slate-950 font-bold px-4 py-1.5 rounded-full shadow-lg text-sm animate-bounce z-10">
+            🎉 STAGE CLEARED! LEVEL UNLOCKED!
+          </div>
+
           <!-- Modal Game Over -->
-          <div id="gameOverModal" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center space-y-3">
+          <div id="gameOverModal" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center space-y-3 z-20">
             <h2 class="text-2xl font-bold text-red-500">GAME OVER!</h2>
             <p class="text-slate-300 text-sm">Skor Akhir: <span id="finalScore" class="font-bold text-yellow-400">0</span></p>
-            <button onclick="resetGame()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-2 rounded-xl transition text-sm shadow-lg shadow-emerald-600/30">Main Lagi</button>
+            <p class="text-slate-400 text-xs">Pencapaian: <span id="finalStage" class="text-emerald-400 font-bold">Stage 1</span></p>
+            <div class="flex gap-2 w-3/4">
+              <button onclick="showStartMenu()" class="w-1/2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-xl transition text-xs">Menu</button>
+              <button onclick="resetGame()" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl transition text-xs shadow-lg shadow-emerald-600/30">Main Lagi</button>
+            </div>
           </div>
         </div>
 
@@ -120,6 +152,7 @@ const server = http.createServer(async (req, res) => {
         const count = canvas.width / grid;
         let score = 0;
         let highScore = localStorage.getItem('snake_high_score') || 0;
+        let maxUnlockedStage = parseInt(localStorage.getItem('snake_max_stage')) || 1;
         document.getElementById('highScore').innerText = highScore;
 
         let snake = [{ x: 160, y: 160 }, { x: 144, y: 160 }, { x: 128, y: 160 }];
@@ -127,12 +160,50 @@ const server = http.createServer(async (req, res) => {
         let dx = grid, dy = 0;
         let gameLoop = null;
         let isGameOver = false;
+        let isGameStarted = false;
 
-        // --- Konfigurasi Kesulitan & Kecepatan ---
-        let currentSpeed = 100; // default Medium
+        let currentSpeed = 110;
         let soundEnabled = true;
+        let currentStage = 1;
+        let foodEatenInStage = 0;
+        const stageTargetFood = 10;
+        let obstacles = [];
 
-        // --- Web Audio API Synth Generator ---
+        // Update Pilihan Option Stage di Dropdown berdasarkan Progress Unlocked
+        function updateStageDropdown() {
+          const opt2 = document.getElementById('optStage2');
+          const opt3 = document.getElementById('optStage3');
+
+          if (maxUnlockedStage >= 2) {
+            opt2.disabled = false;
+            opt2.innerText = 'Stage 2: Salib (Unlocked)';
+          }
+          if (maxUnlockedStage >= 3) {
+            opt3.disabled = false;
+            opt3.innerText = 'Stage 3: Labirin (Unlocked)';
+          }
+        }
+
+        function loadStageObstacles(stage) {
+          obstacles = [];
+          if (stage === 2) {
+            for (let i = 6; i <= 13; i++) {
+              obstacles.push({ x: i * grid, y: 9 * grid });
+              obstacles.push({ x: 9 * grid, y: i * grid });
+            }
+          } else if (stage >= 3) {
+            for (let i = 3; i <= 7; i++) {
+              obstacles.push({ x: i * grid, y: 3 * grid });
+              obstacles.push({ x: (count - 1 - i) * grid, y: 3 * grid });
+              obstacles.push({ x: i * grid, y: (count - 1 - 3) * grid });
+              obstacles.push({ x: (count - 1 - i) * grid, y: (count - 1 - 3) * grid });
+            }
+            for (let i = 8; i <= 11; i++) {
+              obstacles.push({ x: 9 * grid, y: i * grid });
+            }
+          }
+        }
+
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
         function playBeep(freq, type, duration) {
@@ -153,191 +224,13 @@ const server = http.createServer(async (req, res) => {
         }
 
         function playEatSound() { playBeep(587.33, 'sine', 0.15); }
+        function playLevelUpSound() { 
+          playBeep(440, 'sine', 0.1); 
+          setTimeout(() => playBeep(880, 'sine', 0.2), 100); 
+        }
         function playGameOverSound() { playBeep(150, 'sawtooth', 0.4); }
         function playTurnSound() { playBeep(300, 'triangle', 0.05); }
 
         function toggleSound() {
           soundEnabled = !soundEnabled;
-          document.getElementById('soundBtn').innerText = soundEnabled ? '🔊 Sound ON' : '🔇 Sound OFF';
-        }
-
-        function changeDifficulty(speed) {
-          currentSpeed = parseInt(speed);
-          if (!isGameOver) {
-            clearInterval(gameLoop);
-            gameLoop = setInterval(update, currentSpeed);
-          }
-        }
-
-        function getRandomFoodPos() {
-          return {
-            x: Math.floor(Math.random() * count) * grid,
-            y: Math.floor(Math.random() * count) * grid
-          };
-        }
-
-        function changeDir(dir) {
-          let turned = false;
-          if (dir === 'UP' && dy === 0) { dx = 0; dy = -grid; turned = true; }
-          if (dir === 'DOWN' && dy === 0) { dx = 0; dy = grid; turned = true; }
-          if (dir === 'LEFT' && dx === 0) { dx = -grid; dy = 0; turned = true; }
-          if (dir === 'RIGHT' && dx === 0) { dx = grid; dy = 0; turned = true; }
-          if (turned) playTurnSound();
-        }
-
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'ArrowUp') changeDir('UP');
-          if (e.key === 'ArrowDown') changeDir('DOWN');
-          if (e.key === 'ArrowLeft') changeDir('LEFT');
-          if (e.key === 'ArrowRight') changeDir('RIGHT');
-        });
-
-        // --- Kontrol Touch Swipe Layar HP ---
-        let touchStartX = 0, touchStartY = 0;
-        let touchEndX = 0, touchEndY = 0;
-
-        canvas.addEventListener('touchstart', (e) => {
-          touchStartX = e.changedTouches[0].screenX;
-          touchStartY = e.changedTouches[0].screenY;
-        }, { passive: false });
-
-        canvas.addEventListener('touchmove', (e) => {
-          e.preventDefault();
-        }, { passive: false });
-
-        canvas.addEventListener('touchend', (e) => {
-          touchEndX = e.changedTouches[0].screenX;
-          touchEndY = e.changedTouches[0].screenY;
-          handleSwipe();
-        }, { passive: false });
-
-        function handleSwipe() {
-          const diffX = touchEndX - touchStartX;
-          const diffY = touchEndY - touchStartY;
-          const minSwipeDistance = 20;
-
-          if (Math.abs(diffX) > Math.abs(diffY)) {
-            if (Math.abs(diffX) > minSwipeDistance) {
-              if (diffX > 0) changeDir('RIGHT');
-              else changeDir('LEFT');
-            }
-          } else {
-            if (Math.abs(diffY) > minSwipeDistance) {
-              if (diffY > 0) changeDir('DOWN');
-              else changeDir('UP');
-            }
-          }
-        }
-
-        function update() {
-          if (isGameOver) return;
-          const head = { x: snake[0].x + dx, y: snake[0].y + dy };
-          
-          if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) return gameOver();
-          for (let segment of snake) {
-            if (head.x === segment.x && head.y === segment.y) return gameOver();
-          }
-          
-          snake.unshift(head);
-          
-          if (head.x === food.x && head.y === food.y) {
-            score += 10;
-            document.getElementById('score').innerText = score;
-            playEatSound();
-            food = getRandomFoodPos();
-          } else {
-            snake.pop();
-          }
-          draw();
-        }
-
-        function draw() {
-          ctx.fillStyle = '#020617';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          
-          // Makanan (Apel Merah Glow)
-          ctx.fillStyle = '#ef4444';
-          ctx.beginPath();
-          ctx.arc(food.x + grid/2, food.y + grid/2, grid/2 - 1, 0, Math.PI * 2);
-          ctx.fill();
-          
-          // Gambar Ular (Desain Ular Realistis / Membulat + Mata)
-          snake.forEach((segment, index) => {
-            const centerX = segment.x + grid / 2;
-            const centerY = segment.y + grid / 2;
-            const radius = (grid / 2) - 1;
-
-            ctx.beginPath();
-            if (index === 0) {
-              // 1. KEPALA ULAR (Hijau Terang Bulat)
-              ctx.fillStyle = '#10b981';
-              ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-              ctx.fill();
-
-              // 2. MATA ULAR (Bintik Hitam & Putih)
-              let eye1X = centerX, eye1Y = centerY, eye2X = centerX, eye2Y = centerY;
-              if (dx > 0) { eye1X = centerX + 3; eye1Y = centerY - 4; eye2X = centerX + 3; eye2Y = centerY + 4; }
-              else if (dx < 0) { eye1X = centerX - 3; eye1Y = centerY - 4; eye2X = centerX - 3; eye2Y = centerY + 4; }
-              else if (dy < 0) { eye1X = centerX - 4; eye1Y = centerY - 3; eye2X = centerX + 4; eye2Y = centerY - 3; }
-              else if (dy > 0) { eye1X = centerX - 4; eye1Y = centerY + 3; eye2X = centerX + 4; eye2Y = centerY + 3; }
-
-              // Bola Mata Putih
-              ctx.fillStyle = '#ffffff';
-              ctx.beginPath(); ctx.arc(eye1X, eye1Y, 2.5, 0, Math.PI * 2); ctx.fill();
-              ctx.beginPath(); ctx.arc(eye2X, eye2Y, 2.5, 0, Math.PI * 2); ctx.fill();
-
-              // Pupil Mata Hitam
-              ctx.fillStyle = '#000000';
-              ctx.beginPath(); ctx.arc(eye1X, eye1Y, 1, 0, Math.PI * 2); ctx.fill();
-              ctx.beginPath(); ctx.arc(eye2X, eye2Y, 1, 0, Math.PI * 2); ctx.fill();
-
-            } else {
-              // 3. BADAN & EKOR ULAR
-              const tailFactor = Math.max(0.5, 1 - (index / (snake.length + 5)));
-              const bodyRadius = radius * tailFactor;
-
-              ctx.fillStyle = index % 2 === 0 ? '#34d399' : '#059669';
-              ctx.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
-              ctx.fill();
-            }
-          });
-        }
-
-        function gameOver() {
-          isGameOver = true;
-          clearInterval(gameLoop);
-          playGameOverSound();
-          if (score > highScore) {
-            highScore = score;
-            localStorage.setItem('snake_high_score', highScore);
-            document.getElementById('highScore').innerText = highScore;
-          }
-          document.getElementById('finalScore').innerText = score;
-          document.getElementById('gameOverModal').classList.remove('hidden');
-        }
-
-        function resetGame() {
-          snake = [{ x: 160, y: 160 }, { x: 144, y: 160 }, { x: 128, y: 160 }];
-          dx = grid; dy = 0; score = 0; isGameOver = false;
-          document.getElementById('score').innerText = 0;
-          document.getElementById('gameOverModal').classList.add('hidden');
-          food = getRandomFoodPos();
-          clearInterval(gameLoop);
-          gameLoop = setInterval(update, currentSpeed);
-        }
-
-        gameLoop = setInterval(update, currentSpeed);
-      </script>
-    </body>
-    </html>
-    `;
-
-    res.setHeader('Content-Type', 'text/html');
-    res.statusCode = 200;
-    res.end(html);
-  }
-});
-
-server.listen(port, hostname, () => {
-  console.log(`Server running at http://${hostname}:${port}/`);
-});
+          document.getElementById('soundBtn').innerText = sound
