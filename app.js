@@ -54,25 +54,36 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ success: false, message: 'Username dan password wajib diisi!' }));
       }
 
-      const result = await pool.query(
-        'SELECT id, username, high_score, max_stage FROM users WHERE username = $1 AND password = $2',
-        [username.trim(), password]
+      // Cek username terlebih dahulu
+      const userCheck = await pool.query(
+        'SELECT id, username, password, high_score, max_stage FROM users WHERE username = $1',
+        [username.trim()]
       );
 
-      if (result.rows.length > 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, user: result.rows[0] }));
-      } else {
+      if (userCheck.rows.length === 0) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, message: 'Username atau password salah!' }));
+        return res.end(JSON.stringify({ success: false, message: 'User tidak dikenal!' }));
       }
+
+      const user = userCheck.rows[0];
+
+      // Cek kecocokan password
+      if (user.password !== password) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: 'Password salah!' }));
+      }
+
+      // Hapus field password sebelum dikirim ke frontend
+      delete user.password;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, user }));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: false, message: 'Database error: ' + err.message }));
     }
     return;
   }
-
   // 3. Endpoint Simpan High Score & Stage ke PostgreSQL
   if (req.url === '/api/save-progress' && req.method === 'POST') {
     try {
