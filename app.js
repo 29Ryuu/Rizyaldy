@@ -218,16 +218,31 @@ const server = http.createServer(async (req, res) => {
           ctx.fillStyle = '#020617';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           
-          // Gambar Apel
+          // Gambar Makanan (Apel Merah Glow)
           ctx.fillStyle = '#ef4444';
           ctx.beginPath();
           ctx.arc(food.x + grid/2, food.y + grid/2, grid/2 - 1, 0, Math.PI * 2);
           ctx.fill();
           
-          // Gambar Ular
+          // Gambar Ular (Membulat / Rounded Segment)
           snake.forEach((segment, index) => {
-            ctx.fillStyle = index === 0 ? '#10b981' : '#34d399';
-            ctx.fillRect(segment.x + 1, segment.y + 1, grid - 2, grid - 2);
+            ctx.fillStyle = index === 0 ? '#10b981' : '#34d399'; // Kepala lebih gelap
+            
+            ctx.beginPath();
+            if (index === 0) {
+              // Kepala Ular: Lingkaran Utuh
+              ctx.arc(segment.x + grid/2, segment.y + grid/2, grid/2 - 1, 0, Math.PI * 2);
+            } else {
+              // Badan Ular: Persegi Membulat (Rounded Rect)
+              const r = 4; // Radius sudut bulat
+              const x = segment.x + 1;
+              const y = segment.y + 1;
+              const w = grid - 2;
+              const h = grid - 2;
+              
+              ctx.roundRect(x, y, w, h, r);
+            }
+            ctx.fill();
           });
         }
 
