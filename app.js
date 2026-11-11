@@ -101,7 +101,7 @@ const server = http.createServer(async (req, res) => {
           </div>
         </div>
 
-        <!-- Tombol Arah HP (Opsional) -->
+        <!-- Tombol Arah HP -->
         <div class="grid grid-cols-3 gap-2 pt-1 max-w-[200px] mx-auto sm:hidden">
           <div></div>
           <button onclick="changeDir('UP')" class="bg-slate-700 active:bg-slate-600 p-3 rounded-lg text-center font-bold">⬆️</button>
@@ -128,9 +128,11 @@ const server = http.createServer(async (req, res) => {
         let gameLoop = null;
         let isGameOver = false;
 
-        let currentSpeed = 100;
+        // --- Konfigurasi Kesulitan & Kecepatan ---
+        let currentSpeed = 100; // default Medium
         let soundEnabled = true;
 
+        // --- Web Audio API Synth Generator ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
         function playBeep(freq, type, duration) {
@@ -150,9 +152,9 @@ const server = http.createServer(async (req, res) => {
           } catch(e){}
         }
 
-        function playEatSound() { playBeep(587.33, 'sine', 0.15); } 
-        function playGameOverSound() { playBeep(150, 'sawtooth', 0.4); } 
-        function playTurnSound() { playBeep(300, 'triangle', 0.05); } 
+        function playEatSound() { playBeep(587.33, 'sine', 0.15); }
+        function playGameOverSound() { playBeep(150, 'sawtooth', 0.4); }
+        function playTurnSound() { playBeep(300, 'triangle', 0.05); }
 
         function toggleSound() {
           soundEnabled = !soundEnabled;
@@ -176,4 +178,166 @@ const server = http.createServer(async (req, res) => {
 
         function changeDir(dir) {
           let turned = false;
-          if (dir === 'UP' && dy === 0
+          if (dir === 'UP' && dy === 0) { dx = 0; dy = -grid; turned = true; }
+          if (dir === 'DOWN' && dy === 0) { dx = 0; dy = grid; turned = true; }
+          if (dir === 'LEFT' && dx === 0) { dx = -grid; dy = 0; turned = true; }
+          if (dir === 'RIGHT' && dx === 0) { dx = grid; dy = 0; turned = true; }
+          if (turned) playTurnSound();
+        }
+
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowUp') changeDir('UP');
+          if (e.key === 'ArrowDown') changeDir('DOWN');
+          if (e.key === 'ArrowLeft') changeDir('LEFT');
+          if (e.key === 'ArrowRight') changeDir('RIGHT');
+        });
+
+        // --- Kontrol Touch Swipe Layar HP ---
+        let touchStartX = 0, touchStartY = 0;
+        let touchEndX = 0, touchEndY = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+          touchStartX = e.changedTouches[0].screenX;
+          touchStartY = e.changedTouches[0].screenY;
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+          touchEndX = e.changedTouches[0].screenX;
+          touchEndY = e.changedTouches[0].screenY;
+          handleSwipe();
+        }, { passive: false });
+
+        function handleSwipe() {
+          const diffX = touchEndX - touchStartX;
+          const diffY = touchEndY - touchStartY;
+          const minSwipeDistance = 20;
+
+          if (Math.abs(diffX) > Math.abs(diffY)) {
+            if (Math.abs(diffX) > minSwipeDistance) {
+              if (diffX > 0) changeDir('RIGHT');
+              else changeDir('LEFT');
+            }
+          } else {
+            if (Math.abs(diffY) > minSwipeDistance) {
+              if (diffY > 0) changeDir('DOWN');
+              else changeDir('UP');
+            }
+          }
+        }
+
+        function update() {
+          if (isGameOver) return;
+          const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+          
+          if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) return gameOver();
+          for (let segment of snake) {
+            if (head.x === segment.x && head.y === segment.y) return gameOver();
+          }
+          
+          snake.unshift(head);
+          
+          if (head.x === food.x && head.y === food.y) {
+            score += 10;
+            document.getElementById('score').innerText = score;
+            playEatSound();
+            food = getRandomFoodPos();
+          } else {
+            snake.pop();
+          }
+          draw();
+        }
+
+        function draw() {
+          ctx.fillStyle = '#020617';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // Makanan (Apel Merah Glow)
+          ctx.fillStyle = '#ef4444';
+          ctx.beginPath();
+          ctx.arc(food.x + grid/2, food.y + grid/2, grid/2 - 1, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Gambar Ular (Desain Ular Realistis / Membulat + Mata)
+          snake.forEach((segment, index) => {
+            const centerX = segment.x + grid / 2;
+            const centerY = segment.y + grid / 2;
+            const radius = (grid / 2) - 1;
+
+            ctx.beginPath();
+            if (index === 0) {
+              // 1. KEPALA ULAR (Hijau Terang Bulat)
+              ctx.fillStyle = '#10b981';
+              ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+              ctx.fill();
+
+              // 2. MATA ULAR (Bintik Hitam & Putih)
+              let eye1X = centerX, eye1Y = centerY, eye2X = centerX, eye2Y = centerY;
+              if (dx > 0) { eye1X = centerX + 3; eye1Y = centerY - 4; eye2X = centerX + 3; eye2Y = centerY + 4; }
+              else if (dx < 0) { eye1X = centerX - 3; eye1Y = centerY - 4; eye2X = centerX - 3; eye2Y = centerY + 4; }
+              else if (dy < 0) { eye1X = centerX - 4; eye1Y = centerY - 3; eye2X = centerX + 4; eye2Y = centerY - 3; }
+              else if (dy > 0) { eye1X = centerX - 4; eye1Y = centerY + 3; eye2X = centerX + 4; eye2Y = centerY + 3; }
+
+              // Bola Mata Putih
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath(); ctx.arc(eye1X, eye1Y, 2.5, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(eye2X, eye2Y, 2.5, 0, Math.PI * 2); ctx.fill();
+
+              // Pupil Mata Hitam
+              ctx.fillStyle = '#000000';
+              ctx.beginPath(); ctx.arc(eye1X, eye1Y, 1, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(eye2X, eye2Y, 1, 0, Math.PI * 2); ctx.fill();
+
+            } else {
+              // 3. BADAN & EKOR ULAR
+              const tailFactor = Math.max(0.5, 1 - (index / (snake.length + 5)));
+              const bodyRadius = radius * tailFactor;
+
+              ctx.fillStyle = index % 2 === 0 ? '#34d399' : '#059669';
+              ctx.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          });
+        }
+
+        function gameOver() {
+          isGameOver = true;
+          clearInterval(gameLoop);
+          playGameOverSound();
+          if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('snake_high_score', highScore);
+            document.getElementById('highScore').innerText = highScore;
+          }
+          document.getElementById('finalScore').innerText = score;
+          document.getElementById('gameOverModal').classList.remove('hidden');
+        }
+
+        function resetGame() {
+          snake = [{ x: 160, y: 160 }, { x: 144, y: 160 }, { x: 128, y: 160 }];
+          dx = grid; dy = 0; score = 0; isGameOver = false;
+          document.getElementById('score').innerText = 0;
+          document.getElementById('gameOverModal').classList.add('hidden');
+          food = getRandomFoodPos();
+          clearInterval(gameLoop);
+          gameLoop = setInterval(update, currentSpeed);
+        }
+
+        gameLoop = setInterval(update, currentSpeed);
+      </script>
+    </body>
+    </html>
+    `;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.statusCode = 200;
+    res.end(html);
+  }
+});
+
+server.listen(port, hostname, () => {
+  console.log(`Server running at http://${hostname}:${port}/`);
+});
