@@ -215,34 +215,67 @@ const server = http.createServer(async (req, res) => {
         }
 
         function draw() {
+          // Background Arena Game
           ctx.fillStyle = '#020617';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           
-          // Gambar Makanan (Apel Merah Glow)
+          // Makanan (Apel Merah Glow)
           ctx.fillStyle = '#ef4444';
           ctx.beginPath();
           ctx.arc(food.x + grid/2, food.y + grid/2, grid/2 - 1, 0, Math.PI * 2);
           ctx.fill();
           
-          // Gambar Ular (Membulat / Rounded Segment)
+          // Gambar Ular (Desain Ular Realistis / Membulat + Mata)
           snake.forEach((segment, index) => {
-            ctx.fillStyle = index === 0 ? '#10b981' : '#34d399'; // Kepala lebih gelap
-            
+            const centerX = segment.x + grid / 2;
+            const centerY = segment.y + grid / 2;
+            const radius = (grid / 2) - 1;
+
             ctx.beginPath();
             if (index === 0) {
-              // Kepala Ular: Lingkaran Utuh
-              ctx.arc(segment.x + grid/2, segment.y + grid/2, grid/2 - 1, 0, Math.PI * 2);
-            } else {
-              // Badan Ular: Persegi Membulat (Rounded Rect)
-              const r = 4; // Radius sudut bulat
-              const x = segment.x + 1;
-              const y = segment.y + 1;
-              const w = grid - 2;
-              const h = grid - 2;
+              // 1. KEPALA ULAR (Hijau Terang Bulat)
+              ctx.fillStyle = '#10b981';
+              ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+              ctx.fill();
+
+              // 2. MATA ULAR (Bintik Hitam & Putih)
+              // Menyesuaikan posisi mata berdasarkan arah gerak (dx, dy)
+              let eye1X = centerX, eye1Y = centerY, eye2X = centerX, eye2Y = centerY;
               
-              ctx.roundRect(x, y, w, h, r);
+              if (dx > 0) { // Bergerak ke Kanan
+                eye1X = centerX + 3; eye1Y = centerY - 4;
+                eye2X = centerX + 3; eye2Y = centerY + 4;
+              } else if (dx < 0) { // Bergerak ke Kiri
+                eye1X = centerX - 3; eye1Y = centerY - 4;
+                eye2X = centerX - 3; eye2Y = centerY + 4;
+              } else if (dy < 0) { // Bergerak ke Atas
+                eye1X = centerX - 4; eye1Y = centerY - 3;
+                eye2X = centerX + 4; eye2Y = centerY - 3;
+              } else if (dy > 0) { // Bergerak ke Bawah
+                eye1X = centerX - 4; eye1Y = centerY + 3;
+                eye2X = centerX + 4; eye2Y = centerY + 3;
+              }
+
+              // Bola Mata Putih
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath(); ctx.arc(eye1X, eye1Y, 2.5, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(eye2X, eye2Y, 2.5, 0, Math.PI * 2); ctx.fill();
+
+              // Pupil Mata Hitam
+              ctx.fillStyle = '#000000';
+              ctx.beginPath(); ctx.arc(eye1X, eye1Y, 1, 0, Math.PI * 2); ctx.fill();
+              ctx.beginPath(); ctx.arc(eye2X, eye2Y, 1, 0, Math.PI * 2); ctx.fill();
+
+            } else {
+              // 3. BADAN & EKOR ULAR (Semakin ke Ekor Semakin Mengecil)
+              // Mengecilkan ukuran segmen berdasarkan indeks urutan ekor
+              const tailFactor = Math.max(0.5, 1 - (index / (snake.length + 5)));
+              const bodyRadius = radius * tailFactor;
+
+              ctx.fillStyle = index % 2 === 0 ? '#34d399' : '#059669'; // Motif berselang-seling
+              ctx.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
+              ctx.fill();
             }
-            ctx.fill();
           });
         }
 
