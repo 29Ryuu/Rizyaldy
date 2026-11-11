@@ -4,13 +4,21 @@ const { Pool } = require('pg');
 const hostname = '0.0.0.0';
 const port = 3000;
 
-const pool = new Pool({
+cconst pool = new Pool({
   host: process.env.DB_HOST || 'db',
   user: process.env.DB_USER || 'ryuu',
   password: process.env.DB_PASSWORD || 'rahasia123',
   database: process.env.DB_NAME || 'db_latihan',
   port: 5432,
+  max: 5,                       // Maksimal 5 koneksi aktif (hemat RAM)
+  idleTimeoutMillis: 30000,     // Simpan koneksi tetap hangat selama 30 detik
+  connectionTimeoutMillis: 3000 // Gagal cepat (3 detik) jika DB bermasalah
 });
+
+// Pemanasan koneksi PostgreSQL saat container web pertama kali nyala
+pool.query('SELECT 1')
+  .then(() => console.log('PostgreSQL Pool siap dan hangat!'))
+  .catch(err => console.error('Gagal warm-up DB:', err.message));
 
 // Helper untuk membaca body JSON dari request POST
 function getRequestBody(req) {
